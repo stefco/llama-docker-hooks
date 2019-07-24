@@ -2,11 +2,44 @@
 # hooks/build
 # https://docs.docker.com/docker-cloud/builds/advanced/
 
+set -o nounset
+set -o errexit
+set -o pipefail
+
 # $IMAGE_NAME var is injected into the build so the tag is correct.
 echo "[***] Build hook running"
 
 REPO="$(awk -F'/' '{print $(NF-1) "/" $NF}' <<<"${DOCKER_REPO}")"
 NAME="${REPO}:${DOCKER_TAG}"
+
+# See if we have changed anything since the last tag.
+# If not, just reuse the old image.
+if current_tag="`git describe --tags`"; then
+    echo Current tag: $current_tag
+    if last_tag="`git describe --abbrev=0 "$current_tag"^`"; then
+        echo Last tag: $last_tag
+        git fetch origin && echo Fetched from origin || echo Could not fetch
+        last_dockerfile="$last_tag"-${DOCKERFILE_PATH}
+        if git show "$last_tag"^:${DOCKERFILE_PATH} >"$last_dockerfile"; then
+            echo Copied last dockerfile to $last_dockerfile
+            if ! diff "${DOCKERFILE_PATH}" "$last_dockerfile"; then
+                echo "Dockerfile $last_tag:$DOCKERFILE_PATH changed from"
+                echo "$current_tag:$DOCKERFILE_PATH, pulling: ${NAME}"
+                docker pull "${NAME}"
+                exit
+            else
+                echo "Dockerfile changed since last tag, rebuilding."
+            fi
+        else
+            echo "Could not show $last_tag:$DOCKERFILE_PATH, rebuilding."
+        fi
+    else
+        echo "Could not find a previous tag, rebuilding."
+    fi
+else
+    echo "No latest tag found, rebuilding."
+fi
+
 
 docker build \
     --build-arg NAME="${NAME}" \

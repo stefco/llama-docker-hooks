@@ -14,7 +14,16 @@ ARG DATE
 ARG REPO
 ARG DOCKERFILE_PATH
 FROM alpine AS meta
-COPY "${DOCKERFILE_PATH}" /provision
+ARG DOCKER_TAG
+ARG NAME
+ARG VERSION
+ARG COMMIT
+ARG URL
+ARG BRANCH
+ARG DATE
+ARG REPO
+ARG DOCKERFILE_PATH
+COPY "${DOCKERFILE_PATH}" /provision/"${DOCKERFILE_PATH}"
 RUN echo >>/docker-meta.yml "- name: ${NAME}" \
     && echo >>/docker-meta.yml "  version: ${VERSION}" \
     && echo >>/docker-meta.yml "  commit: ${COMMIT}" \
@@ -26,7 +35,7 @@ RUN echo >>/docker-meta.yml "- name: ${NAME}" \
     && echo >>/docker-meta.yml "  dockerfile_path: ${DOCKERFILE_PATH}" \
     && echo >>/docker-meta.yml "  dockerfile: |" \
     && sed >>/docker-meta.yml 's/^/    /' </provision/"${DOCKERFILE_PATH}" \
-    && rm -r /provision/Dockerfile
+    && rm -r /provision
 # END CREATE docker-meta.yml
 #------------------------------------------------------------------------------
 
@@ -40,7 +49,10 @@ RUN echo >>/docker-meta.yml "- name: ${NAME}" \
 #------------------------------------------------------------------------------
 # APPEND docker-meta.yml
 COPY --from=meta /docker-meta.yml /new-docker-meta.yml
-RUN cat /new-docker-meta.yml >>/docker-meta.yml && rm /new-docker-meta.yml
+RUN cat /new-docker-meta.yml >>/docker-meta.yml \
+    && echo Full meta: \
+    && cat /docker-meta.yml \
+    && rm /new-docker-meta.yml
 # END APPEND docker-meta.yml
 #------------------------------------------------------------------------------
 
